@@ -1303,8 +1303,6 @@ class Speedtest(object):
         for d in sorted(self.servers.keys()):
             for s in self.servers[d]:
                 self.closest.append(s)
-                if len(self.closest) == limit:
-                    break
             else:
                 continue
             break
@@ -1331,62 +1329,20 @@ class Speedtest(object):
 
         results = {}
         for server in servers:
-            cum = []
-            url = os.path.dirname(server['url'])
-            stamp = int(timeit.time.time() * 1000)
-            latency_url = '%s/latency.txt?x=%s' % (url, stamp)
-            for i in range(0, 3):
-                this_latency_url = '%s.%s' % (latency_url, i)
-                printer('%s %s' % ('GET', this_latency_url),
-                        debug=True)
-                urlparts = urlparse(latency_url)
-                try:
-                    if urlparts[0] == 'https':
-                        h = SpeedtestHTTPSConnection(
-                            urlparts[1],
-                            source_address=source_address_tuple
-                        )
-                    else:
-                        h = SpeedtestHTTPConnection(
-                            urlparts[1],
-                            source_address=source_address_tuple
-                        )
-                    headers = {'User-Agent': user_agent}
-                    path = '%s?%s' % (urlparts[2], urlparts[4])
-                    start = timeit.default_timer()
-                    h.request("GET", path, headers=headers)
-                    r = h.getresponse()
-                    total = (timeit.default_timer() - start)
-                except HTTP_ERRORS:
-                    e = get_exception()
-                    printer('ERROR: %r' % e, debug=True)
-                    cum.append(3600)
-                    continue
+            avg = 0
+            results[0] = server
 
-                text = r.read(9)
-                if int(r.status) == 200 and text == 'test=test'.encode():
-                    cum.append(total)
-                else:
-                    cum.append(3600)
-                h.close()
-
-            avg = round((sum(cum) / 6) * 1000.0, 3)
-            results[avg] = server
-
-        try:
             fastest = sorted(results.keys())[0]
-        except IndexError:
-            raise SpeedtestBestServerFailure('Unable to connect to servers to '
-                                             'test latency.')
-        best = results[fastest]
-        best['latency'] = fastest
 
-        self.results.ping = fastest
-        self.results.server = best
-
-        self._best.update(best)
-        printer('Best Server:\n%r' % best, debug=True)
-        return best
+            best = results[fastest]
+            best['latency'] = fastest
+           
+            self.results.ping = fastest
+            self.results.server = best
+           
+            self._best.update(best)
+            printer('Best Server:\n%r' % best, debug=True)
+            yield best
 
     def download(self, callback=do_nothing):
         """Test download speed against speedtest.net"""
@@ -1776,55 +1732,56 @@ def shell():
             printer('Retrieving information for the selected server...', quiet)
         else:
             printer('Selecting best server based on ping...', quiet)
-        speedtest.get_best_server()
-    elif args.mini:
-        speedtest.get_best_server(speedtest.set_mini_server(args.mini))
 
-    results = speedtest.results
+    for best in speedtest.get_best_server():
 
-    printer('Hosted by %(sponsor)s (%(name)s) [%(d)0.2f km]: '
-            '%(latency)s ms' % results.server, quiet)
-
-    if args.download:
-        printer('Testing download speed', quiet,
-                end=('', '\n')[bool(debug)])
-        speedtest.download(callback=callback)
-        printer('Download: %0.2f M%s/s' %
-                ((results.download / 1000.0 / 1000.0) / args.units[1],
-                 args.units[0]),
-                quiet)
-    else:
-        printer('Skipping download test', quiet)
-
-    if args.upload:
-        printer('Testing upload speed', quiet,
-                end=('', '\n')[bool(debug)])
-        speedtest.upload(callback=callback, pre_allocate=args.pre_allocate)
-        printer('Upload: %0.2f M%s/s' %
-                ((results.upload / 1000.0 / 1000.0) / args.units[1],
-                 args.units[0]),
-                quiet)
-    else:
-        printer('Skipping upload test', quiet)
-
-    printer('Results:\n%r' % results.dict(), debug=True)
-
-    if args.simple:
-        printer('Ping: %s ms\nDownload: %0.2f M%s/s\nUpload: %0.2f M%s/s' %
-                (results.ping,
-                 (results.download / 1000.0 / 1000.0) / args.units[1],
-                 args.units[0],
-                 (results.upload / 1000.0 / 1000.0) / args.units[1],
-                 args.units[0]))
-    elif args.csv:
-        printer(results.csv(delimiter=args.csv_delimiter))
-    elif args.json:
-        if args.share:
-            results.share()
-        printer(results.json())
-
-    if args.share and not machine_format:
-        printer('Share results: %s' % results.share())
+        print("\n")
+        print(f"id:{best['id']}, {best['country']}, {best['name']}, Lat:{best['lat']}, Lon:{best['lon']}")
+        results = speedtest.results
+ 
+        printer('Hosted by %(sponsor)s (%(name)s) [%(d)0.2f km]: '
+                '%(latency)s ms' % results.server, quiet)
+ 
+        if args.download:
+            printer('Testing download speed', quiet,
+                    end=('', '\n')[bool(debug)])
+            speedtest.download(callback=callback)
+            printer('Download: %0.2f M%s/s' %
+                    ((results.download / 1000.0 / 1000.0) / args.units[1],
+                     args.units[0]),
+                    quiet)
+        else:
+            printer('Skipping download test', quiet)
+ 
+        if args.upload:
+            printer('Testing upload speed', quiet,
+                    end=('', '\n')[bool(debug)])
+            speedtest.upload(callback=callback, pre_allocate=args.pre_allocate)
+            printer('Upload: %0.2f M%s/s' %
+                    ((results.upload / 1000.0 / 1000.0) / args.units[1],
+                     args.units[0]),
+                    quiet)
+        else:
+            printer('Skipping upload test', quiet)
+ 
+        printer('Results:\n%r' % results.dict(), debug=True)
+ 
+        if args.simple:
+            printer('Ping: %s ms\nDownload: %0.2f M%s/s\nUpload: %0.2f M%s/s' %
+                    (results.ping,
+                     (results.download / 1000.0 / 1000.0) / args.units[1],
+                     args.units[0],
+                     (results.upload / 1000.0 / 1000.0) / args.units[1],
+                     args.units[0]))
+        elif args.csv:
+            printer(results.csv(delimiter=args.csv_delimiter))
+        elif args.json:
+            if args.share:
+                results.share()
+            printer(results.json())
+ 
+        if args.share and not machine_format:
+            printer('Share results: %s' % results.share())
 
 
 def main():
