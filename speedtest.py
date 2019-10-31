@@ -1379,7 +1379,7 @@ class Speedtest(object):
         def consumer(q, request_count):
             while len(finished) < request_count:
                 thread = q.get(True)
-                while thread.isAlive():
+                while thread.is_alive():
                     thread.join(timeout=0.1)
                 finished.append(sum(thread.result))
                 callback(thread.i, request_count, end=True)
@@ -1392,9 +1392,9 @@ class Speedtest(object):
         start = timeit.default_timer()
         prod_thread.start()
         cons_thread.start()
-        while prod_thread.isAlive():
+        while prod_thread.is_alive():
             prod_thread.join(timeout=0.1)
-        while cons_thread.isAlive():
+        while cons_thread.is_alive():
             cons_thread.join(timeout=0.1)
 
         stop = timeit.default_timer()
@@ -1457,7 +1457,7 @@ class Speedtest(object):
         def consumer(q, request_count):
             while len(finished) < request_count:
                 thread = q.get(True)
-                while thread.isAlive():
+                while thread.is_alive():
                     thread.join(timeout=0.1)
                 finished.append(thread.result)
                 callback(thread.i, request_count, end=True)
@@ -1470,9 +1470,9 @@ class Speedtest(object):
         start = timeit.default_timer()
         prod_thread.start()
         cons_thread.start()
-        while prod_thread.isAlive():
+        while prod_thread.is_alive():
             prod_thread.join(timeout=0.1)
-        while cons_thread.isAlive():
+        while cons_thread.is_alive():
             cons_thread.join(timeout=0.1)
 
         stop = timeit.default_timer()
@@ -1736,7 +1736,7 @@ def shell():
     for best in speedtest.get_best_server():
 
         print("\n")
-        print(f"id:{best['id']}, {best['country']}, {best['name']}, Lat:{best['lat']}, Lon:{best['lon']}")
+        print(f"id:{best['id']}, {best['country']}, {best['name']}, LatLon:{best['lat']},{best['lon']}")
         results = speedtest.results
  
         printer('Hosted by %(sponsor)s (%(name)s) [%(d)0.2f km]: '
