@@ -53,6 +53,9 @@ class FakeShutdownEvent(object):
 # Some global variables we use
 DEBUG = False
 _GLOBAL_DEFAULT_TIMEOUT = object()
+PY25PLUS = sys.version_info[:2] >= (2, 5)
+PY26PLUS = sys.version_info[:2] >= (2, 6)
+PY32PLUS = sys.version_info[:2] >= (3, 2)
 
 # Begin import game to handle Python 2 and Python 3
 try:
@@ -64,13 +67,15 @@ except ImportError:
         json = None
 
 try:
-    import xml.etree.cElementTree as ET
-except ImportError:
+    import xml.etree.ElementTree as ET
     try:
-        import xml.etree.ElementTree as ET
+        from xml.etree.ElementTree import _Element as ET_Element
     except ImportError:
-        from xml.dom import minidom as DOM
-        ET = None
+        pass
+except ImportError:
+    from xml.dom import minidom as DOM
+    from xml.parsers.expat import ExpatError
+    ET = None
 
 try:
     from urllib2 import (urlopen, Request, HTTPError, URLError,
@@ -256,6 +261,10 @@ else:
             write(arg)
         write(end)
 
+if PY32PLUS:
+    etree_iter = ET.Element.iter
+elif PY25PLUS:
+    etree_iter = ET_Element.getiterator
 
 # Exception "constants" to support Python 2 through Python 3
 try:
@@ -648,6 +657,8 @@ def catch_request(request, opener=None):
 
     try:
         uh = _open(request)
+        if request.get_full_url() != uh.geturl():
+            printer('Redirected to %s' % uh.geturl(), debug=True)
         return uh, False
     except HTTP_ERRORS:
         e = get_exception()
@@ -1173,13 +1184,13 @@ class Speedtest(object):
 
                 stream = get_response_stream(uh)
 
-                serversxml = []
+                serversxml_list = []
                 while 1:
                     try:
-                        serversxml.append(stream.read(1024))
+                        serversxml_list.append(stream.read(1024))
                     except (OSError, EOFError):
                         raise ServersRetrievalError(get_exception())
-                    if len(serversxml[-1]) == 0:
+                    if len(serversxml_list[-1]) == 0:
                         break
 
                 stream.close()
@@ -1188,15 +1199,28 @@ class Speedtest(object):
                 if int(uh.code) != 200:
                     raise ServersRetrievalError()
 
-                printer('Servers XML:\n%s' % ''.encode().join(serversxml),
-                        debug=True)
+                serversxml = ''.encode().join(serversxml_list)
+
+                printer('Servers XML:\n%s' % serversxml, debug=True)
 
                 try:
                     try:
-                        root = ET.fromstring(''.encode().join(serversxml))
-                        elements = root.getiterator('server')
+                        try:
+                            root = ET.fromstring(serversxml)
+                        except ET.ParseError:
+                            e = get_exception()
+                            raise SpeedtestServersError(
+                                'Malformed speedtest.net server list: %s' % e
+                            )
+                        elements = etree_iter(root, 'server')
                     except AttributeError:
-                        root = DOM.parseString(''.join(serversxml))
+                        try:
+                            root = DOM.parseString(serversxml)
+                        except ExpatError:
+                            e = get_exception()
+                            raise SpeedtestServersError(
+                                'Malformed speedtest.net server list: %s' % e
+                            )
                         elements = root.getElementsByTagName('server')
                 except (SyntaxError, xml.parsers.expat.ExpatError):
                     raise ServersRetrievalError()
