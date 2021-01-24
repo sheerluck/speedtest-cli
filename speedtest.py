@@ -1130,7 +1130,13 @@ class Speedtest(object):
             'upload_max': upload_count * size_count
         })
 
-        self.lat_lon = (float(client['lat']), float(client['lon']))
+        try:
+            self.lat_lon = (float(client['lat']), float(client['lon']))
+        except ValueError:
+            raise SpeedtestConfigError(
+                'Unknown location: lat=%r lon=%r' %
+                (client.get('lat'), client.get('lon'))
+            )
 
         printer('Config:\n%r' % self.config, debug=True)
 
@@ -1201,8 +1207,6 @@ class Speedtest(object):
 
                 serversxml = ''.encode().join(serversxml_list)
 
-                printer('Servers XML:\n%s' % serversxml, debug=True)
-
                 try:
                     try:
                         try:
@@ -1252,7 +1256,6 @@ class Speedtest(object):
                     except KeyError:
                         self.servers[d] = [attrib]
 
-                break
 
             except ServersRetrievalError:
                 continue
@@ -1316,7 +1319,7 @@ class Speedtest(object):
 
         return self.servers
 
-    def get_closest_servers(self, limit=5):
+    def get_closest_servers(self):
         """Limit servers to the closest speedtest.net servers based on
         geographic distance
         """
@@ -1352,6 +1355,7 @@ class Speedtest(object):
         user_agent = build_user_agent()
 
         results = {}
+        print(f"{len(servers)=}")
         for server in servers:
             avg = 0
             results[0] = server
@@ -1757,12 +1761,15 @@ def shell():
         else:
             printer('Selecting best server based on ping...', quiet)
 
+    counter = 0
     for best in speedtest.get_best_server():
+        counter += 1
+        results = speedtest.results
 
         print("\n")
-        print(f"id:{best['id']}, {best['country']}, {best['name']}, LatLon:{best['lat']},{best['lon']}")
-        results = speedtest.results
- 
+        prefix = f"{counter:>3}, {best['id']}"
+        print(f"{prefix} {best['country']}, {best['name']}, LatLon:{best['lat']},{best['lon']}")
+
         printer('Hosted by %(sponsor)s (%(name)s) [%(d)0.2f km]: '
                 '%(latency)s ms' % results.server, quiet)
  
